@@ -39,12 +39,19 @@ class V4L2Manager:
             for line in output.splitlines():
                 if not line.strip():
                     if current_card and nodes:
-                        devices.append({
-                            "card": current_card,
-                            "bus": current_bus,
-                            "nodes": nodes,
-                            "primary_node": nodes[0] if nodes else None
-                        })
+                        is_loop = (
+                            "loopback" in (current_card or "").lower() or 
+                            "virtual" in (current_card or "").lower() or 
+                            "controller" in (current_card or "").lower() or
+                            "v4l2loopback" in (current_bus or "").lower()
+                        )
+                        if not is_loop:
+                            devices.append({
+                                "card": current_card,
+                                "bus": current_bus,
+                                "nodes": nodes,
+                                "primary_node": nodes[0] if nodes else None
+                            })
                     current_card = None
                     current_bus = None
                     nodes = []
@@ -65,12 +72,19 @@ class V4L2Manager:
                         nodes.append(node)
 
             if current_card and nodes:
-                devices.append({
-                    "card": current_card,
-                    "bus": current_bus,
-                    "nodes": nodes,
-                    "primary_node": nodes[0] if nodes else None
-                })
+                is_loop = (
+                    "loopback" in (current_card or "").lower() or 
+                    "virtual" in (current_card or "").lower() or 
+                    "controller" in (current_card or "").lower() or
+                    "v4l2loopback" in (current_bus or "").lower()
+                )
+                if not is_loop:
+                    devices.append({
+                        "card": current_card,
+                        "bus": current_bus,
+                        "nodes": nodes,
+                        "primary_node": nodes[0] if nodes else None
+                    })
         except Exception as e:
             # Fallback to glob /dev/video*
             for dev_path in sorted(glob.glob("/dev/video*")):

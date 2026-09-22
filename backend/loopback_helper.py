@@ -6,18 +6,46 @@ for consumption by Zoom, MS Teams, Google Meet, OBS, and browsers.
 
 import os
 import fcntl
-import struct
-import subprocess
+import ctypes
 import glob
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 
 # V4L2 Constants
-VIDIOC_S_FMT = 0xc0cc5605
+# On 64-bit Linux (x86_64), sizeof(v4l2_format) is 208 bytes, giving 0xc0d05605
+VIDIOC_S_FMT = 0xc0d05605
 V4L2_BUF_TYPE_VIDEO_OUTPUT = 2
 V4L2_PIX_FMT_YUYV = 0x56595559  # 'YUYV'
-V4L2_PIX_FMT_BGR24 = 0x33524742 # 'BGR3'
-V4L2_PIX_FMT_RGB24 = 0x33424752 # 'RGB3'
 V4L2_FIELD_NONE = 1
+V4L2_COLORSPACE_SRGB = 8
+
+class v4l2_pix_format(ctypes.Structure):
+    _fields_ = [
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+        ("pixelformat", ctypes.c_uint32),
+        ("field", ctypes.c_uint32),
+        ("bytesperline", ctypes.c_uint32),
+        ("sizeimage", ctypes.c_uint32),
+        ("colorspace", ctypes.c_uint32),
+        ("priv", ctypes.c_uint32),
+        ("flags", ctypes.c_uint32),
+        ("ycbcr_enc", ctypes.c_uint32),
+        ("quantization", ctypes.c_uint32),
+        ("xfer_func", ctypes.c_uint32),
+    ]
+
+class v4l2_format(ctypes.Structure):
+    class _fmt(ctypes.Union):
+        _fields_ = [
+            ("pix", v4l2_pix_format),
+            ("raw_data", ctypes.c_uint8 * 200),
+            ("_align", ctypes.c_uint64),
+        ]
+    _fields_ = [
+        ("type", ctypes.c_uint32),
+        ("_pad", ctypes.c_uint32), # 4 bytes padding for 64-bit union alignment (total 208 bytes)
+        ("fmt", _fmt),
+    ]
 
 class LoopbackDeviceWriter:
     def __init__(self, device_path: str = "/dev/video10", width: int = 1280, height: int = 720, fps: int = 30):
@@ -38,53 +66,17 @@ class LoopbackDeviceWriter:
         try:
             self.fd = os.open(self.device_path, os.O_RDWR)
             
-            # struct v4l2_format {
-            #     __u32 type;
-            #     union {
-            #         struct v4l2_pix_format pix;
-            #         ...
-            #     } fmt;
-            # };
-            # struct v4l2_pix_format {
-            #     __u32 width;
-            #     __u32 height;
-            #     __u32 pixelformat;
-            #     __u32 field;
-            #     __u32 bytesperline;
-            #     __u32 sizeimage;
-            #     __u32 colorspace;
-            #     __u32 priv;
-            #     __u32 flags;
-            #     __u32 ycbcr_enc;
-            #     __u32 quantization;
-            #     __u32 xfer_func;
-            # };
-            
-            fourcc = V4L2_PIX_FMT_YUYV
-            bytes_per_line = self.width * 2
-            size_image = self.width * self.height * 2
-            colorspace = 8 # V4L2_COLORSPACE_SRGB
+            fmt = v4l2_format()
+            fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT
+            fmt.fmt.pix.width = self.width
+            fmt.fmt.pix.height = self.height
+            fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV
+            fmt.fmt.pix.field = V4L2_FIELD_NONE
+            fmt.fmt.pix.bytesperline = self.width * 2
+            fmt.fmt.pix.sizeimage = self.width * self.height * 2
+            fmt.fmt.pix.colorspace = V4L2_COLORSPACE_SRGB
 
-            # Format structure: 204 bytes total (type + pix_format + padding)
-            fmt_struct = struct.pack(
-                "IIIIIIIIIIIII",
-                V4L2_BUF_TYPE_VIDEO_OUTPUT, # type
-                self.width,                 # width
-                self.height,                # height
-                fourcc,                     # pixelformat
-                V4L2_FIELD_NONE,            # field
-                bytes_per_line,             # bytesperline
-                size_image,                 # sizeimage
-                colorspace,                 # colorspace
-                0,                          # priv
-                0,                          # flags
-                0,                          # ycbcr_enc
-                0,                          # quantization
-                0                           # xfer_func
-            )
-            fmt_struct = fmt_struct.ljust(208, b'\x00')
-
-            fcntl.ioctl(self.fd, VIDIOC_S_FMT, fmt_struct)
+            fcntl.ioctl(self.fd, VIDIOC_S_FMT, fmt)
             self.is_open = True
             print(f"[Loopback] Successfully initialized {self.device_path} ({self.width}x{self.height} @ {self.fps}fps)")
             return True
@@ -106,7 +98,7 @@ class LoopbackDeviceWriter:
         try:
             os.write(self.fd, yuyv_bytes)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def close(self):
