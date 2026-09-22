@@ -4,27 +4,6 @@ A modern, high-precision webcam controller and optics manager designed for Ubunt
 
 ---
 
-## 📸 Screenshots
-
-### Desktop View (Main Interface & Zoom Controls)
-![Desktop View](docs/screenshots/desktop_view.png)
-
-### Virtual Backgrounds, Blur & Green Screen (Chroma Key)
-![Virtual Backgrounds](docs/screenshots/virtual_background.png)
-
-### Mobile & Narrow Browser Width (Responsive Design)
-<p align="center">
-  <img src="docs/screenshots/mobile_view.png" alt="Mobile / Narrow Window View" width="380">
-</p>
-
-### Focus & Optics Controls
-![Focus Optics](docs/screenshots/focus_optics.png)
-
-### Color & Lighting Calibration
-![Color & Lighting](docs/screenshots/color_lighting.png)
-
----
-
 ## ✨ Features
 
 - 🖼️ **Virtual Backgrounds & Blurring (AI & Chroma Key)**:
