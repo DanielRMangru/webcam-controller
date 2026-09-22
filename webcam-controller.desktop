@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Webcam Controller
+Comment=Fine camera zoom, focus, lighting and virtual camera controls for Ubuntu
+Exec=/home/daniel/Apps/webcam-controller/start.sh
+Icon=camera-web
+Terminal=false
+Categories=AudioVideo;Video;Utility;
+StartupNotify=true

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linux Webcam Controller — Zoom, Focus & Optics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Webcam Controller</h1>
+          <span class="subtitle">Ubuntu 24.04 Pro Optics Engine</span>
+        </div>
+      </div>
+
+      <!-- Quick Status & Controls in Header -->
+      <div class="header-actions">
+        <div class="device-selector-wrapper">
+          <label for="deviceSelect" class="sr-only">Camera Device</label>
+          <select id="deviceSelect" class="dropdown-select" title="Select Video Device">
+            <option value="/dev/video0">Loading devices...</option>
+          </select>
+        </div>
+
+        <div class="profile-selector-wrapper">
+          <select id="profileSelect" class="dropdown-select" title="Preset Profile">
+            <option value="">Profiles...</option>
+          </select>
+          <button id="saveProfileBtn" class="btn btn-secondary btn-icon" title="Save Current Preset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Virtual Cam Toggle -->
+        <button id="virtualCamToggleBtn" class="btn btn-vcam" title="Toggle Virtual Camera for Zoom/Teams">
+          <span class="indicator-dot" id="vcamIndicator"></span>
+          <span id="vcamBtnText">Virtual Cam: Off</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Left Column: Video Viewport -->
+      <section class="video-section">
+        <div class="viewport-card">
+          <div class="viewport-wrapper" id="viewportWrapper">
+            <img id="videoFeed" src="/api/video_feed" alt="Camera Stream Preview" crossorigin="anonymous">
+            
+            <!-- Framing Guides Overlay -->
+            <div class="viewport-overlay" id="viewportOverlay">
+              <div class="crosshair-guide"></div>
+              <div class="face-target-reticle" id="faceReticle">
+                <span class="reticle-label">Auto Track</span>
+              </div>
+            </div>
+
+            <!-- Viewport Top Badges -->
+            <div class="viewport-hud hud-top">
+              <div class="badge" id="telemetryFps">
+                <span class="live-dot"></span> 30.0 FPS
+              </div>
+              <div class="badge" id="telemetryResolution">1280x720</div>
+              <div class="badge badge-accent" id="telemetryZoom">1.00x</div>
+            </div>
+
+            <!-- Viewport Floating Action Buttons -->
+            <div class="viewport-hud hud-controls">
+              <button id="mirrorBtn" class="hud-btn" title="Mirror / Flip Image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M16 3h5v5M8 3H3v5M16 21h5v-5M8 21H3v-5M12 3v18"/>
+                </svg>
+              </button>
+              <button id="centerPanBtn" class="hud-btn" title="Center Pan & Tilt">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="16"/>
+                  <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Viewport Bottom Quick Zoom Bar -->
+            <div class="viewport-hud hud-bottom">
+              <div class="quick-zoom-chips">
+                <button class="chip-btn active" data-zoom="1.0">1.0x Wide</button>
+                <button class="chip-btn" data-zoom="1.25">1.25x</button>
+                <button class="chip-btn" data-zoom="1.5">1.5x Close</button>
+                <button class="chip-btn" data-zoom="2.0">2.0x</button>
+                <button class="chip-btn" data-zoom="3.0">3.0x</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Sub-bar: Pan instructions & status -->
+          <div class="viewport-footer">
+            <div class="hint-text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+              </svg>
+              Click & drag video or use Pan/Tilt pad to re-position framing
+            </div>
+            <div class="vcam-status-pill" id="vcamStatusPill">
+              Virtual Cam: Inactive
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Control Deck -->
+      <section class="control-section">
+        <div class="deck-card">
+          <!-- Navigation Tabs -->
+          <nav class="tabs-nav">
+            <button class="tab-btn active" data-tab="zoom-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="11" y1="8" x2="11" y2="14"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+              Zoom & Frame
+            </button>
+            <button class="tab-btn" data-tab="focus-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+              </svg>
+              Focus
+            </button>
+            <button class="tab-btn" data-tab="lighting-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+              Lighting
+            </button>
+            <button class="tab-btn" data-tab="color-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="13.5" cy="6.5" r=".5"/>
+                <circle cx="17.5" cy="10.5" r=".5"/>
+                <circle cx="8.5" cy="7.5" r=".5"/>
+                <circle cx="6.5" cy="12.5" r=".5"/>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/>
+              </svg>
+              Color
+            </button>
+            <button class="tab-btn" data-tab="vcam-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <polygon points="23 7 16 12 23 17 23 7"/>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              Apps
+            </button>
+          </nav>
+
+          <div class="tabs-body">
+            <!-- TAB 1: Zoom & Framing -->
+            <div class="tab-pane active" id="zoom-tab">
+              <div class="control-group">
+                <div class="group-header">
+                  <h3>Camera Zoom Level</h3>
+                  <span class="val-badge" id="zoomValDisplay">1.00x</span>
+                </div>
+                <div class="slider-row">
+                  <button class="step-btn" id="zoomMinusBtn">-</button>
+                  <input type="range" id="zoomSlider" min="1.0" max="5.0" step="0.05" value="1.0" class="styled-slider">
+                  <button class="step-btn" id="zoomPlusBtn">+</button>
+                </div>
+              </div>
+
+              <!-- Auto-Zoom / Smart Face Tracking Section -->
+              <div class="feature-card">
+                <div class="feature-header">
+                  <div class="feature-info">
+                    <span class="feature-title">Auto-Zoom & Face Tracking</span>
+                    <span class="feature-desc">Dynamically frames and follows your face smoothly</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="autoZoomToggle">
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="feature-body" id="autoZoomOptions" style="display: none;">
+                  <div class="param-row">
+                    <label>Tracking Speed / Smoothing</label>
+                    <span class="param-val" id="smoothVal">Smooth (0.12)</span>
+                  </div>
+                  <input type="range" id="smoothSlider" min="0.03" max="0.30" step="0.01" value="0.12" class="styled-slider">
+                </div>
+              </div>
+
+              <!-- 2D Pan & Tilt Joystick / Pad -->
+              <div class="control-group">
+                <div class="group-header">
+                  <h3>Pan & Tilt Orientation</h3>
+                  <button class="btn btn-xs btn-ghost" id="resetPanTiltBtn">Reset Center</button>
+                </div>
+                <div class="pan-tilt-container">
+                  <div class="pan-tilt-pad" id="panTiltPad">
+                    <div class="pad-grid"></div>
+                    <div class="pad-puck" id="padPuck"></div>
+                  </div>
+                  <div class="pan-tilt-axes">
+                    <div class="axis-readout">
+                      <span>Pan X:</span>
+                      <strong id="panValDisplay">0.00</strong>
+                    </div>
+                    <div class="axis-readout">
+                      <span>Tilt Y:</span>
+                      <strong id="tiltValDisplay">0.00</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: Focus Controls -->
+            <div class="tab-pane" id="focus-tab">
+              <div class="feature-card">
+                <div class="feature-header">
+                  <div class="feature-info">
+                    <span class="feature-title">Continuous Autofocus</span>
+                    <span class="feature-desc">Hardware auto lens adjustment on subject</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="autoFocusToggle" checked>
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="control-group" id="manualFocusGroup">
+                <div class="group-header">
+                  <h3>Manual Focus Distance</h3>
+                  <span class="val-badge" id="focusValDisplay">320</span>
+                </div>
+                <input type="range" id="focusSlider" min="1" max="1023" step="1" value="320" class="styled-slider">
+                <div class="range-labels">
+                  <span>Macro (Close)</span>
+                  <span>Normal</span>
+                  <span>Infinity (Far)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 3: Lighting & Exposure -->
+            <div class="tab-pane" id="lighting-tab">
+              <div class="feature-card">
+                <div class="feature-header">
+                  <div class="feature-info">
+                    <span class="feature-title">Auto Exposure</span>
+                    <span class="feature-desc">Automatic camera sensor shutter and ISO</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="autoExposureToggle" checked>
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="control-group" id="manualExposureGroup">
+                <div class="group-header">
+                  <h3>Exposure Time (Shutter)</h3>
+                  <span class="val-badge" id="exposureValDisplay">156</span>
+                </div>
+                <input type="range" id="exposureSlider" min="1" max="5000" step="1" value="156" class="styled-slider">
+              </div>
+
+              <div class="control-group">
+                <div class="group-header">
+                  <h3>Backlight Compensation</h3>
+                  <span class="val-badge" id="backlightValDisplay">85</span>
+                </div>
+                <input type="range" id="backlightSlider" min="0" max="160" step="1" value="85" class="styled-slider">
+              </div>
+
+              <div class="control-group">
+                <div class="group-header">
+                  <h3>Sensor Gain (ISO Boost)</h3>
+                  <span class="val-badge" id="gainValDisplay">0</span>
+                </div>
+                <input type="range" id="gainSlider" min="0" max="100" step="1" value="0" class="styled-slider">
+              </div>
+            </div>
+
+            <!-- TAB 4: Color & Picture Controls -->
+            <div class="tab-pane" id="color-tab">
+              <!-- Auto White Balance -->
+              <div class="feature-card">
+                <div class="feature-header">
+                  <div class="feature-info">
+                    <span class="feature-title">Auto White Balance</span>
+                    <span class="feature-desc">Automatic color temperature calibration</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="autoWbToggle" checked>
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="control-group" id="manualWbGroup">
+                <div class="group-header">
+                  <h3>Color Temperature</h3>
+                  <span class="val-badge" id="wbTempValDisplay">4600K</span>
+                </div>
+                <input type="range" id="wbTempSlider" min="2800" max="6500" step="50" value="4600" class="styled-slider temp-slider">
+                <div class="range-labels">
+                  <span style="color: #ff9d42;">Warm (2800K)</span>
+                  <span style="color: #ffffff;">Neutral (4600K)</span>
+                  <span style="color: #72b9ff;">Cool (6500K)</span>
+                </div>
+              </div>
+
+              <div class="grid-2col">
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Brightness</h3>
+                    <span class="val-badge" id="brightValDisplay">0</span>
+                  </div>
+                  <input type="range" id="brightSlider" min="-64" max="64" step="1" value="0" class="styled-slider">
+                </div>
+
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Contrast</h3>
+                    <span class="val-badge" id="contrastValDisplay">35</span>
+                  </div>
+                  <input type="range" id="contrastSlider" min="0" max="64" step="1" value="35" class="styled-slider">
+                </div>
+              </div>
+
+              <div class="grid-2col">
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Saturation</h3>
+                    <span class="val-badge" id="satValDisplay">68</span>
+                  </div>
+                  <input type="range" id="satSlider" min="0" max="128" step="1" value="68" class="styled-slider">
+                </div>
+
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Sharpness</h3>
+                    <span class="val-badge" id="sharpValDisplay">4</span>
+                  </div>
+                  <input type="range" id="sharpSlider" min="0" max="6" step="1" value="4" class="styled-slider">
+                </div>
+              </div>
+
+              <div class="grid-2col">
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Gamma</h3>
+                    <span class="val-badge" id="gammaValDisplay">100</span>
+                  </div>
+                  <input type="range" id="gammaSlider" min="72" max="500" step="1" value="100" class="styled-slider">
+                </div>
+
+                <div class="control-group">
+                  <div class="group-header">
+                    <h3>Hue</h3>
+                    <span class="val-badge" id="hueValDisplay">0</span>
+                  </div>
+                  <input type="range" id="hueSlider" min="-40" max="40" step="1" value="0" class="styled-slider">
+                </div>
+              </div>
+
+              <div class="action-footer">
+                <button id="resetDefaultsBtn" class="btn btn-secondary w-100">Reset Color & Picture to Defaults</button>
+              </div>
+            </div>
+
+            <!-- TAB 5: Virtual Camera & App Setup -->
+            <div class="tab-pane" id="vcam-tab">
+              <div class="info-box">
+                <div class="info-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                  Connect to Zoom, MS Teams & Browsers
+                </div>
+                <p>When Virtual Camera is active, your zoomed, framed, and auto-tracked video stream is sent directly to a virtual camera device in Linux.</p>
+              </div>
+
+              <div class="control-group">
+                <div class="group-header">
+                  <h3>Virtual Device Node</h3>
+                  <span class="val-badge font-mono" id="vcamNodeDisplay">/dev/video10</span>
+                </div>
+              </div>
+
+              <div class="setup-instruction-card">
+                <span class="setup-label">One-Time Setup Command (if loopback not loaded):</span>
+                <div class="code-box">
+                  <code id="setupCodeText">sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="Webcam Controller Virtual Cam" exclusive_caps=1</code>
+                  <button id="copySetupBtn" class="copy-btn" title="Copy Command">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="app-instructions-list">
+                <h4>How to select in your apps:</h4>
+                <ol>
+                  <li>Open <strong>MS Teams</strong>, <strong>Zoom</strong>, <strong>Google Meet</strong>, or <strong>Chrome</strong>.</li>
+                  <li>Go to <em>Settings &rarr; Video / Camera</em>.</li>
+                  <li>Select <strong>"Webcam Controller Virtual Cam"</strong> as your camera device.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Save Profile Modal -->
+  <div class="modal-backdrop" id="saveProfileModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Save Custom Preset</h3>
+        <button class="btn-close" id="closeModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label for="profileNameInput">Profile Name</label>
+        <input type="text" id="profileNameInput" class="styled-input" placeholder="e.g., Close-up Meeting 1.8x">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelProfileBtn">Cancel</button>
+        <button class="btn btn-primary" id="confirmSaveProfileBtn">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
