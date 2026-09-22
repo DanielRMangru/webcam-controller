@@ -7,7 +7,7 @@ import os
 import asyncio
 import json
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,6 +78,16 @@ class ApplyProfileRequest(BaseModel):
 
 class ToggleMirrorRequest(BaseModel):
     flip: bool
+
+class BackgroundConfigRequest(BaseModel):
+    mode: Optional[str] = None
+    blur_radius: Optional[int] = None
+    image_name: Optional[str] = None
+    solid_color: Optional[list] = None
+    chroma_color: Optional[list] = None
+    chroma_similarity: Optional[float] = None
+    chroma_smoothness: Optional[float] = None
+    chroma_spill: Optional[float] = None
 
 
 # Background telemetry broadcaster
@@ -236,6 +246,61 @@ def delete_profile(name: str):
     success = config_mgr.delete_profile(name)
     return {"success": success}
 
+# --- Background & Segmentation Endpoints ---
+
+@app.get("/api/background/presets")
+def get_background_presets():
+    """List all available background presets and custom uploaded images."""
+    return stream_engine.seg_engine.get_preset_list()
+
+@app.get("/api/background/image/{filename}")
+def get_background_image(filename: str):
+    """Serve a background image file."""
+    file_path = os.path.join(stream_engine.seg_engine.bg_dir, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Background image not found")
+
+@app.post("/api/background/config")
+def update_background_config(req: BackgroundConfigRequest):
+    """Update virtual background, blur, or chroma key settings."""
+    stream_engine.seg_engine.set_config(
+        mode=req.mode,
+        blur_radius=req.blur_radius,
+        image_name=req.image_name,
+        solid_color=req.solid_color,
+        chroma_color=req.chroma_color,
+        chroma_similarity=req.chroma_similarity,
+        chroma_smoothness=req.chroma_smoothness,
+        chroma_spill=req.chroma_spill
+    )
+    return {"success": True, "status": stream_engine.seg_engine.get_status()}
+
+@app.post("/api/background/upload")
+async def upload_background_image(file: UploadFile = File(...)):
+    """Upload a custom background image."""
+    try:
+        # Sanitize filename
+        clean_name = os.path.basename(file.filename or "custom.jpg")
+        save_path = os.path.join(stream_engine.seg_engine.bg_dir, clean_name)
+        
+        contents = await file.read()
+        with open(save_path, "wb") as f:
+            f.write(contents)
+        
+        # Reload cache and set as active image
+        stream_engine.seg_engine._load_preset_images()
+        stream_engine.seg_engine.set_config(image_name=clean_name)
+        
+        return {
+            "success": True,
+            "filename": clean_name,
+            "presets": stream_engine.seg_engine.get_preset_list(),
+            "status": stream_engine.seg_engine.get_status()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload image: {e}")
+
 # Live MJPEG Stream generator
 def generate_mjpeg_frames():
     import time
@@ -273,6 +338,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 stream_engine.set_auto_zoom(data.get("enabled", False))
             elif action == "set_control":
                 v4l2_mgr.set_control(active_device, data.get("name"), data.get("value"))
+            elif action == "set_background":
+                stream_engine.seg_engine.set_config(
+                    mode=data.get("mode"),
+                    blur_radius=data.get("blur_radius"),
+                    image_name=data.get("image_name"),
+                    solid_color=data.get("solid_color"),
+                    chroma_color=data.get("chroma_color"),
+                    chroma_similarity=data.get("chroma_similarity"),
+                    chroma_smoothness=data.get("chroma_smoothness"),
+                    chroma_spill=data.get("chroma_spill")
+                )
     except WebSocketDisconnect:
         connected_websockets.discard(websocket)
     except Exception:

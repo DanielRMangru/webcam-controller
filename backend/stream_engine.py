@@ -10,6 +10,7 @@ import threading
 import numpy as np
 from typing import Optional, Dict, Any, Tuple
 from .loopback_helper import LoopbackDeviceWriter, LoopbackManager
+from .segmentation_engine import SegmentationEngine
 
 class StreamEngine:
     def __init__(self, device_path: str = "/dev/video0", target_width: int = 1280, target_height: int = 720, target_fps: int = 30):
@@ -53,6 +54,9 @@ class StreamEngine:
         self.virtual_cam_enabled = False
         self.virtual_device_path = "/dev/video10"
         self.loopback_writer: Optional[LoopbackDeviceWriter] = None
+
+        # Segmentation & Virtual Background Engine
+        self.seg_engine = SegmentationEngine(target_width=self.target_width, target_height=self.target_height)
 
         # Initialize Face Detector
         self._init_face_detector()
@@ -323,6 +327,10 @@ class StreamEngine:
                 if self.flip_horizontal:
                     processed_frame = cv2.flip(processed_frame, 1)
 
+                # Apply Virtual Background / Blur / Green Screen if enabled
+                if self.seg_engine.enabled:
+                    processed_frame = self.seg_engine.process_frame(processed_frame)
+
                 # Write to virtual camera loopback device if active
                 if self.virtual_cam_enabled and self.loopback_writer and self.loopback_writer.is_open:
                     try:
@@ -384,5 +392,6 @@ class StreamEngine:
             "faces_detected": self.detected_faces_count,
             "virtual_cam_active": self.virtual_cam_enabled and (self.loopback_writer is not None and self.loopback_writer.is_open),
             "virtual_device": self.virtual_device_path,
-            "flip_horizontal": self.flip_horizontal
+            "flip_horizontal": self.flip_horizontal,
+            "background": self.seg_engine.get_status()
         }

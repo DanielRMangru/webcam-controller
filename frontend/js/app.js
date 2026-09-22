@@ -28,6 +28,7 @@ class WebcamApp {
     this.loadControls();
     this.loadProfiles();
     this.checkVirtualCamStatus();
+    this.loadBackgroundPresets();
   }
 
   initElements() {
@@ -104,6 +105,25 @@ class WebcamApp {
     this.vcamNodeDisplay = document.getElementById('vcamNodeDisplay');
     this.setupCodeText = document.getElementById('setupCodeText');
     this.copySetupBtn = document.getElementById('copySetupBtn');
+
+    // Background & Chroma Tab
+    this.bgModeDisplay = document.getElementById('bgModeDisplay');
+    this.bgModeButtons = document.querySelectorAll('.bg-mode-btn');
+    this.blurControlsGroup = document.getElementById('blurControlsGroup');
+    this.imagePresetsGroup = document.getElementById('imagePresetsGroup');
+    this.chromaControlsGroup = document.getElementById('chromaControlsGroup');
+    this.blurSlider = document.getElementById('blurSlider');
+    this.blurValDisplay = document.getElementById('blurValDisplay');
+    this.bgPresetsGrid = document.getElementById('bgPresetsGrid');
+    this.bgImageUploadInput = document.getElementById('bgImageUploadInput');
+    this.chromaColorPicker = document.getElementById('chromaColorPicker');
+    this.chromaColorButtons = document.querySelectorAll('.chroma-color-btn');
+    this.chromaSimSlider = document.getElementById('chromaSimSlider');
+    this.chromaSimDisplay = document.getElementById('chromaSimDisplay');
+    this.chromaSmoothSlider = document.getElementById('chromaSmoothSlider');
+    this.chromaSmoothDisplay = document.getElementById('chromaSmoothDisplay');
+    this.chromaSpillSlider = document.getElementById('chromaSpillSlider');
+    this.chromaSpillDisplay = document.getElementById('chromaSpillDisplay');
 
     // Profile Modal
     this.saveProfileModal = document.getElementById('saveProfileModal');
@@ -342,6 +362,82 @@ class WebcamApp {
       this.saveCurrentProfile(name);
       this.saveProfileModal.classList.remove('active');
       this.profileNameInput.value = '';
+    });
+
+    // Background Mode Buttons
+    this.bgModeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        this.setBgMode(mode);
+      });
+    });
+
+    // Blur slider
+    this.blurSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      this.blurValDisplay.innerText = `${val}px`;
+      this.sendBackgroundConfig({ blur_radius: val });
+    });
+
+    // Chroma Key color picker
+    this.chromaColorPicker.addEventListener('input', (e) => {
+      const hex = e.target.value;
+      const rgb = this.hexToRgb(hex);
+      this.chromaColorButtons.forEach(b => b.classList.remove('active'));
+      this.sendBackgroundConfig({ chroma_color: rgb });
+    });
+
+    // Chroma preset color buttons
+    this.chromaColorButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.chromaColorButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const hex = btn.getAttribute('data-color');
+        this.chromaColorPicker.value = hex;
+        const rgb = this.hexToRgb(hex);
+        this.sendBackgroundConfig({ chroma_color: rgb });
+      });
+    });
+
+    // Chroma parameter sliders
+    this.chromaSimSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      this.chromaSimDisplay.innerText = val.toFixed(2);
+      this.sendBackgroundConfig({ chroma_similarity: val });
+    });
+
+    this.chromaSmoothSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      this.chromaSmoothDisplay.innerText = val.toFixed(2);
+      this.sendBackgroundConfig({ chroma_smoothness: val });
+    });
+
+    this.chromaSpillSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      this.chromaSpillDisplay.innerText = val.toFixed(2);
+      this.sendBackgroundConfig({ chroma_spill: val });
+    });
+
+    // Background Image Upload
+    this.bgImageUploadInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const res = await fetch('/api/background/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success && data.presets) {
+          this.renderBgPresets(data.presets, data.filename);
+        }
+      } catch (err) {
+        console.error('Image upload failed:', err);
+      }
     });
   }
 
@@ -680,6 +776,72 @@ class WebcamApp {
     this.loadProfiles();
   }
 
+  // Background & Chroma Helpers
+  setBgMode(mode) {
+    this.bgModeButtons.forEach(b => b.classList.toggle('active', b.getAttribute('data-mode') === mode));
+    
+    // Display name
+    const labels = {
+      'none': 'Off',
+      'ai_blur': 'AI Blur',
+      'ai_image': 'AI Virtual Scene',
+      'chroma_image': 'Green Screen'
+    };
+    this.bgModeDisplay.innerText = labels[mode] || mode;
+
+    // Toggle sub-panels
+    this.blurControlsGroup.style.display = (mode === 'ai_blur') ? 'flex' : 'none';
+    this.imagePresetsGroup.style.display = (mode === 'ai_image' || mode === 'chroma_image') ? 'flex' : 'none';
+    this.chromaControlsGroup.style.display = (mode.startsWith('chroma')) ? 'flex' : 'none';
+
+    this.sendBackgroundConfig({ mode });
+  }
+
+  sendBackgroundConfig(config) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ action: 'set_background', ...config }));
+    } else {
+      this.sendPost('/api/background/config', config);
+    }
+  }
+
+  async loadBackgroundPresets() {
+    try {
+      const presets = await this.sendGet('/api/background/presets');
+      this.renderBgPresets(presets);
+    } catch (e) {
+      console.error('Error loading background presets:', e);
+    }
+  }
+
+  renderBgPresets(presets, activeName = 'office.jpg') {
+    this.bgPresetsGrid.innerHTML = '';
+    presets.forEach(p => {
+      const card = document.createElement('div');
+      card.className = `preset-card ${p.id === activeName ? 'active' : ''}`;
+      card.title = p.name;
+      card.innerHTML = `
+        <img src="${p.url}" alt="${p.name}">
+        <span class="preset-label">${p.name}</span>
+      `;
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        this.sendBackgroundConfig({ image_name: p.id });
+      });
+      this.bgPresetsGrid.appendChild(card);
+    });
+  }
+
+  hexToRgb(hex) {
+    hex = hex.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
+    }
+    const num = parseInt(hex, 16);
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  }
+
   // Helpers
   async sendGet(url) {
     const res = await fetch(url);
@@ -700,3 +862,4 @@ class WebcamApp {
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new WebcamApp();
 });
+

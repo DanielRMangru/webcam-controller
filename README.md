@@ -1,6 +1,6 @@
 # 🎥 Linux Webcam Controller (Ubuntu 24.04)
 
-A modern, high-precision webcam controller and optics manager designed for Ubuntu 24.04. It brings advanced camera zoom, auto-framing face tracking, autofocus / manual focus, lighting, and color grading to applications that lack fine camera controls—such as **Microsoft Teams, Zoom, Google Meet, OBS Studio, and Web Browsers**.
+A modern, high-precision webcam controller and optics manager designed for Ubuntu 24.04. It brings advanced camera zoom, auto-framing face tracking, autofocus / manual focus, lighting, color grading, **AI virtual backgrounds, bokeh background blur, and green screen chroma keying** to applications that lack fine camera controls—such as **Microsoft Teams, Zoom, Google Meet, OBS Studio, and Web Browsers**.
 
 ---
 
@@ -8,6 +8,9 @@ A modern, high-precision webcam controller and optics manager designed for Ubunt
 
 ### Desktop View (Main Interface & Zoom Controls)
 ![Desktop View](docs/screenshots/desktop_view.png)
+
+### Virtual Backgrounds, Blur & Green Screen (Chroma Key)
+![Virtual Backgrounds](docs/screenshots/virtual_background.png)
 
 ### Mobile & Narrow Browser Width (Responsive Design)
 <p align="center">
@@ -24,6 +27,12 @@ A modern, high-precision webcam controller and optics manager designed for Ubunt
 
 ## ✨ Features
 
+- 🖼️ **Virtual Backgrounds & Blurring (AI & Chroma Key)**:
+  - **AI Background Blur (Bokeh)**: Realistic depth-of-field background blurring with adjustable intensity slider (5px to 51px).
+  - **AI Virtual Scenes (No Screen Needed)**: Ultra-fast Google MediaPipe Selfie Segmentation running via LiteRT XNNPACK (under 3ms on CPU).
+  - **Curated Background Presets**: *Executive Office*, *Warm Library*, *Modern Studio Loft*, *Cyberpunk Neon*, *Sunset Gradient*.
+  - **Custom Image Upload**: Upload and apply any custom `.jpg`, `.png`, or `.webp` photo from your computer.
+  - **Physical Green / Blue Screen (Chroma Key)**: Professional chroma keying engine with Key Color Picker (Green `#00FF00`, Blue `#0047BB`, or Custom Sample), Tolerance slider, Edge Smoothness/Feathering, and Spill Suppression to eliminate green reflection halos on subject edges.
 - 🔍 **Camera Zoom**:
   - **Manual Digital Zoom**: 1.0x to 5.0x smooth cubic interpolation.
   - **Pan & Tilt**: 2D interactive joystick pad and direct drag-to-pan on the video viewport.
@@ -46,7 +55,7 @@ A modern, high-precision webcam controller and optics manager designed for Ubunt
 - 📱 **Responsive & Narrow Window Ready**:
   - Fully responsive layout that adapts gracefully when you narrow your desktop browser window or use split-screen windows.
 - 📹 **Virtual Camera Pipeline (MS Teams / Zoom / Meet / Chrome)**:
-  - Streams your zoomed, framed, and color-graded video to a Linux virtual webcam device (`/dev/video10` labeled *"Webcam Controller Virtual Cam"*).
+  - Streams your zoomed, background-replaced, and color-graded video to a Linux virtual webcam device (`/dev/video10` labeled *"Webcam Controller Virtual Cam"*).
   - Simply pick the virtual camera in any conferencing app or browser.
 - 💾 **Profile Presets**:
   - Save, load, and switch custom camera profiles (`Meeting Close-up`, `Smart Face Track`, `Low Light Boost`, `Wide Angle`, etc.).
@@ -73,6 +82,6 @@ This configures `v4l2loopback` with `/dev/video10` as *"Webcam Controller Virtua
 
 ## 💻 Architecture
 
-- **Backend**: Python 3.12, FastAPI, Uvicorn, OpenCV (v4.14), V4L2 IOCTL / `v4l2-ctl` wrapper.
+- **Backend**: Python 3.12, FastAPI, Uvicorn, OpenCV (v4.14), LiteRT XNNPACK (MediaPipe Selfie Segmentation), V4L2 IOCTL / `v4l2-ctl` wrapper.
 - **Frontend**: Vanilla HTML5, CSS3 Glassmorphism (Ubuntu/GNOME dark aesthetic), WebSockets for real-time bidirectional telemetry.
 - **Loopback Pipeline**: High-speed frame processing and YUYV buffer stream directly to `v4l2loopback`.
