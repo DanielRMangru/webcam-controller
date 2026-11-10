@@ -11,8 +11,8 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Ensure v4l2loopback-dkms is installed
-if ! dpkg -s v4l2loopback-dkms >/dev/null 2>&1; then
+# Ensure v4l2loopback kernel module is available
+if ! modinfo v4l2loopback >/dev/null 2>&1; then
     echo "Installing v4l2loopback-dkms..."
     apt-get update && apt-get install -y v4l2loopback-dkms v4l-utils
 fi
